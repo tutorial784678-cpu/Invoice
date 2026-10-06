@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CV & Invoice Studio</title>
+<link rel="stylesheet" href="/styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div id="auth" class="auth-screen">
+  <div class="auth-card">
+    <div class="brand">✦ DocuCraft</div>
+    <h1>CV & Invoice Studio</h1>
+    <p class="muted">Create professional documents and save them securely in the cloud.</p>
+    <button id="google" class="btn google">Continue with Google</button>
+    <div class="divider">or</div>
+    <input id="email" placeholder="Email address" type="email">
+    <input id="password" placeholder="Password" type="password">
+    <button id="emailLogin" class="btn primary">Sign in / Create account</button>
+    <p id="authMsg" class="muted"></p>
+  </div>
+</div>
+
+<div id="app" hidden>
+<header class="topbar">
+  <div class="brand">✦ DocuCraft</div>
+  <nav><button data-view="dashboard">Dashboard</button><button data-view="cv">CV Builder</button><button data-view="invoice">Invoice</button><button data-view="documents">Documents</button></nav>
+  <div><span id="userEmail"></span> <button id="logout" class="btn small">Logout</button></div>
+</header>
+<main>
+<section id="dashboard" class="view">
+  <div class="hero"><div><span class="eyebrow">DOCUMENT WORKSPACE</span><h2>Build. Save. Share.</h2><p>Create polished CVs and invoices with cloud saving.</p></div><div class="hero-actions"><button class="btn primary" data-view="cv">+ Create CV</button><button class="btn" data-view="invoice">+ Create Invoice</button></div></div>
+  <div class="stats"><div><b id="docCount">0</b><span>Saved documents</span></div><div><b id="plan">Free</b><span>Current plan</span></div><div><b>Cloud</b><span>Auto-save ready</span></div></div>
+  <div class="grid2"><div class="card"><h3>CV Builder</h3><p>Professional resume with live preview and print-to-PDF.</p><button class="btn primary" data-view="cv">Open Builder</button></div><div class="card"><h3>Invoice Maker</h3><p>Line items, tax, discount, totals and printable invoices.</p><button class="btn primary" data-view="invoice">Open Invoice</button></div></div>
+</section>
+
+<section id="cv" class="view" hidden>
+<div class="section-head"><div><span class="eyebrow">CV BUILDER</span><h2>Create your CV</h2></div><button class="btn primary" id="saveCV">Save to cloud</button></div>
+<div class="editor">
+<div class="card form">
+<label>Full name<input id="cvName" placeholder="Muhammad Ali"></label>
+<label>Professional title<input id="cvTitle" placeholder="Software Developer"></label>
+<label>Email<input id="cvEmail" placeholder="you@example.com"></label>
+<label>Phone<input id="cvPhone" placeholder="+92 300 1234567"></label>
+<label>Location<input id="cvLocation" placeholder="Islamabad, Pakistan"></label>
+<label>About<textarea id="cvAbout" placeholder="Short professional summary"></textarea></label>
+<label>Experience<textarea id="cvExperience" placeholder="Company — Role&#10;2024–2026&#10;• Achievement&#10;• Achievement"></textarea></label>
+<label>Education<textarea id="cvEducation" placeholder="University — Degree&#10;2020–2024"></textarea></label>
+<label>Skills<input id="cvSkills" placeholder="JavaScript, Python, Communication"></label>
+</div>
+<div class="paper" id="cvPreview"></div>
+</div>
+</section>
+
+<section id="invoice" class="view" hidden>
+<div class="section-head"><div><span class="eyebrow">INVOICE MAKER</span><h2>Create an invoice</h2></div><button class="btn primary" id="saveInvoice">Save to cloud</button></div>
+<div class="editor">
+<div class="card form">
+<label>Business name<input id="biz" placeholder="Your Business"></label>
+<label>Client name<input id="client" placeholder="Client Name"></label>
+<label>Invoice number<input id="invNo" value="INV-1001"></label>
+<label>Tax %<input id="tax" type="number" value="0"></label>
+<label>Discount %<input id="discount" type="number" value="0"></label>
+<div id="items"></div><button class="btn" id="addItem">+ Add item</button>
+</div>
+<div class="paper" id="invoicePreview"></div>
+</div>
+</section>
+
+<section id="documents" class="view" hidden><div class="section-head"><div><span class="eyebrow">CLOUD LIBRARY</span><h2>My documents</h2></div></div><div id="docs" class="docs"></div></section>
+</main>
+</div>
+<script>
+const SUPABASE_URL="YOUR_SUPABASE_URL", SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY";
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+let session=null, currentView="dashboard";
+
+const $=id=>document.getElementById(id);
+function show(v){document.querySelectorAll(".view").forEach(x=>x.hidden=true);$(v).hidden=false;currentView=v; if(v==="cv")renderCV();if(v==="invoice")renderInvoice();if(v==="documents")loadDocs();}
+document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>show(b.dataset.view));
+$("google").onclick=()=>sb.auth.signInWithOAuth({provider:"google",options:{redirectTo:location.origin}});
+$("emailLogin").onclick=async()=>{let email=$("email").value,password=$("password").value;if(!email||!password)return $("authMsg").textContent="Enter email and password.";let r=await sb.auth.signInWithPassword({email,password});if(r.error){r=await sb.auth.signUp({email,password});} if(r.error)$("authMsg").textContent=r.error.message;};
+$("logout").onclick=()=>sb.auth.signOut();
+
+const cvIds=["cvName","cvTitle","cvEmail","cvPhone","cvLocation","cvAbout","cvExperience","cvEducation","cvSkills"];
+cvIds.forEach(id=>$(id).addEventListener("input",renderCV));
+function renderCV(){
+  const skills=($("cvSkills").value||"").split(",").map(x=>x.trim()).filter(Boolean);
+  $("cvPreview").innerHTML=`<div class="cv-paper"><h1>${esc($("cvName").value||"Your Name")}</h1><h3>${esc($("cvTitle").value||"Professional Title")}</h3><p class="contact">${esc($("cvEmail").value)} · ${esc($("cvPhone").value)} · ${esc($("cvLocation").value)}</p><hr><h4>PROFILE</h4><p>${nl($("cvAbout").value||"Your professional summary will appear here.")}</p><h4>EXPERIENCE</h4><p>${nl($("cvExperience").value||"Add your work experience.")}</p><h4>EDUCATION</h4><p>${nl($("cvEducation").value||"Add your education.")}</p><h4>SKILLS</h4><div class="chips">${skills.map(s=>`<span>${esc(s)}</span>`).join("")}</div></div>`;
+}
+let itemId=0;
+function addItem(name="",qty=1,price=0){let id=++itemId;let d=document.createElement("div");d.className="item-row";d.innerHTML=`<input class="iname" placeholder="Item" value="${name}"><input class="iqty" type="number" value="${qty}"><input class="iprice" type="number" value="${price}"><button class="x">×</button>`;d.querySelectorAll("input").forEach(x=>x.oninput=renderInvoice);d.querySelector(".x").onclick=()=>{d.remove();renderInvoice()};$("items").appendChild(d);renderInvoice();}
+$("addItem").onclick=()=>addItem();
+addItem("Service",1,100);
+["biz","client","invNo","tax","discount"].forEach(id=>$(id).oninput=renderInvoice);
+function renderInvoice(){
+ let rows=[...document.querySelectorAll(".item-row")], subtotal=0;
+ rows.forEach(r=>subtotal+=(+r.querySelector(".iqty").value||0)*(+r.querySelector(".iprice").value||0));
+ let tax=subtotal*(+$("tax").value||0)/100,discount=subtotal*(+$("discount").value||0)/100,total=subtotal+tax-discount;
+ $("invoicePreview").innerHTML=`<div class="invoice-paper"><div class="invoice-head"><div><h1>INVOICE</h1><p>${esc($("biz").value||"Your Business")}</p></div><strong>${esc($("invNo").value)}</strong></div><p><b>Bill to:</b> ${esc($("client").value||"Client")}</p><table><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr>${rows.map(r=>{let q=+r.querySelector(".iqty").value||0,p=+r.querySelector(".iprice").value||0;return `<tr><td>${esc(r.querySelector(".iname").value)}</td><td>${q}</td><td>$${p.toFixed(2)}</td><td>$${(q*p).toFixed(2)}</td></tr>`}).join("")}</table><div class="totals"><p>Subtotal <b>$${subtotal.toFixed(2)}</b></p><p>Tax <b>$${tax.toFixed(2)}</b></p><p>Discount <b>-$${discount.toFixed(2)}</b></p><h2>Total $${total.toFixed(2)}</h2></div></div>`;
+}
+async function token(){return (await sb.auth.getSession()).data.session?.access_token}
+async function saveDoc(type,title,data){let t=await token();let r=await fetch("/api/documents",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+t},body:JSON.stringify({type,title,data})});if(!r.ok)alert((await r.json()).error);else alert("Saved to cloud!");loadDocs();}
+$("saveCV").onclick=()=>saveDoc("cv",$("cvName").value||"Untitled CV",Object.fromEntries(cvIds.map(id=>[id,$(id).value])));
+$("saveInvoice").onclick=()=>saveDoc("invoice",$("invNo").value||"Invoice",{
+biz:$("biz").value,client:$("client").value,invNo:$("invNo").value,tax:$("tax").value,discount:$("discount").value,
+items:[...document.querySelectorAll(".item-row")].map(r=>({name:r.querySelector(".iname").value,qty:r.querySelector(".iqty").value,price:r.querySelector(".iprice").value}))
+});
+async function loadDocs(){let t=await token();if(!t)return;let r=await fetch("/api/documents",{headers:{Authorization:"Bearer "+t}});if(!r.ok)return;let docs=await r.json();$("docCount").textContent=docs.length;$("docs").innerHTML=docs.length?docs.map(d=>`<div class="card doc"><div><b>${esc(d.title)}</b><small>${d.type.toUpperCase()} · ${new Date(d.updated_at).toLocaleString()}</small></div><button class="btn small" onclick="delDoc('${d.id}')">Delete</button></div>`).join(""):`<div class="card"><p>No saved documents yet.</p></div>`;}
+window.delDoc=async id=>{let t=await token();await fetch("/api/documents/"+id,{method:"DELETE",headers:{Authorization:"Bearer "+t}});loadDocs();}
+function esc(s){return String(s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]))}
+function nl(s){return esc(s).replace(/\n/g,"<br>")}
+sb.auth.onAuthStateChange(async(_e,s)=>{session=s;if(s){$("auth").hidden=true;$("app").hidden=false;$("userEmail").textContent=s.user.email||"";loadDocs();}else{$("auth").hidden=false;$("app").hidden=true}});
+sb.auth.getSession().then(({data})=>{if(data.session){session=data.session;$("auth").hidden=true;$("app").hidden=false;$("userEmail").textContent=session.user.email||"";loadDocs();}});
+renderCV();renderInvoice();
+</script>
+</body></html>
